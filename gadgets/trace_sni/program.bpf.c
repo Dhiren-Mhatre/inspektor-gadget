@@ -13,12 +13,12 @@
 
 #define GADGET_NO_BUF_RESERVE
 #define MAX_EVENT_SIZE 512
+#define GADGET_TYPE_NETWORKING
 #include <gadget/macros.h>
 #include <gadget/buffer.h>
 #include <gadget/types.h>
-
-#define GADGET_TYPE_NETWORKING
 #include <gadget/sockets-map.h>
+#include <gadget/filter.h>
 
 #define TLS_CONTENT_TYPE_HANDSHAKE 0x16
 #define TLS_HANDSHAKE_TYPE_CLIENT_HELLO 0x1
@@ -220,9 +220,11 @@ int ig_trace_sni(struct __sk_buff *skb)
 	}
 	event.timestamp_raw = bpf_ktime_get_boot_ns();
 
+	struct sockets_value *skb_val = gadget_socket_lookup(skb);
 	// Enrich event with process metadata
-	gadget_process_populate_from_socket(gadget_socket_lookup(skb),
-					    &event.proc);
+	if (gadget_should_discard_data_by_skb(skb_val))
+		return 0;
+	gadget_process_populate_from_socket(skb_val, &event.proc);
 
 	gadget_output_buf(skb, &events, &event, sizeof(event));
 
